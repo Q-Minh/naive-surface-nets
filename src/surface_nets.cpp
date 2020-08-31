@@ -6,6 +6,17 @@
 
 namespace isosurface {
 
+/**
+* Implements the naive surface nets algorithm which approximates the isosurface
+* of the given implicit function at the given isovalue in the given regular grid
+* by a triangle mesh.
+* 
+* @author   Quoc-Minh Ton-That
+* @param    implicit_function    The implicit function defined over 3d space for which surface nets extracts an isosurface.
+* @param    grid                 The regular grid that discretizes 3d space and contains the isosurface to extract.
+* @param    isovalue             The isovalue used to extract the isosurface as the level-set implicit_function(x,y,z)=isovalue.
+* @return Returns the vertices and faces of the naive surface nets mesh.
+*/
 common::igl_triangle_mesh surface_nets(
 	std::function<float(float x, float y, float z)> const& implicit_function,
 	regular_grid_t const& grid,
@@ -490,6 +501,14 @@ common::igl_triangle_mesh surface_nets(
 				active_cube_to_vertex_index_map.at(neighbor3)
 			};
 			
+			/*
+			* If the edge e=(v0,v1) has f(v1) >= f(v0), then 
+			* the gradient along e goes from v0 to v1, and 
+			* we use the first quad neighbor ordering. 
+			* Otherwise, the gradient goes from v1 to v0 and
+			* we flip the quad's orientation by using the
+			* second quad neighbor ordering.
+			*/
 			auto const& neighbor_vertices_order =
 				edge_scalar_values[i][1] > edge_scalar_values[i][0] ?
 				quad_neighbor_orders[0] :

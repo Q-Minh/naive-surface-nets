@@ -11,28 +11,45 @@ int main(int argc, char** argv)
 		return len - 1.f;
 	};
 
-	isosurface::regular_grid_t grid{};
+	auto const get_padded_voxel_grid = [](
+		isosurface::point_t const& min, 
+		isosurface::point_t const& max, 
+		std::size_t dimensions[3]) -> isosurface::regular_grid_t
+	{
+		isosurface::regular_grid_t grid{};
 
-	// contain the unit circle in a unit cube
-	grid.x = -1.f;
-	grid.y = -1.f;
-	grid.z = -1.f;
-	grid.sx = 100;
-	grid.sy = 100;
-	grid.sz = 100;
-	grid.dx = (1.f - grid.x) / static_cast<float>(grid.sx);
-	grid.dy = (1.f - grid.y) / static_cast<float>(grid.sy);
-	grid.dz = (1.f - grid.z) / static_cast<float>(grid.sz);
+		// contain the unit circle in a unit cube
+		grid.x = min.x;
+		grid.y = min.y;
+		grid.z = min.z;
+		grid.sx = dimensions[0];
+		grid.sy = dimensions[1];
+		grid.sz = dimensions[2];
+		grid.dx = (max.x - min.x) / static_cast<float>(grid.sx);
+		grid.dy = (max.y - min.y) / static_cast<float>(grid.sy);
+		grid.dz = (max.z - min.z) / static_cast<float>(grid.sz);
 
-	// add an outer layer to the unit cube so that the 
-	// unit circle is contained in the interior of the
-	// regular grid
-	grid.x -= grid.dx;
-	grid.y -= grid.dx;
-	grid.z -= grid.dx;
-	grid.sx += 2;
-	grid.sy += 2;
-	grid.sz += 2;
+		// add an outer layer to the unit cube so that the 
+		// unit circle is contained in the interior of the
+		// regular grid
+		grid.x -= grid.dx;
+		grid.y -= grid.dx;
+		grid.z -= grid.dx;
+		grid.sx += 2;
+		grid.sy += 2;
+		grid.sz += 2;
+
+		return grid;
+	};
+
+	isosurface::point_t min{ -1.f, -1.f, -1.f };
+	isosurface::point_t max{ 1.f, 1.f, 1.f };
+	std::size_t dimensions[3] = { 100, 100, 100 };
+	auto const grid = get_padded_voxel_grid(
+		min, 
+		max, 
+		dimensions
+	);
 
 	common::igl_triangle_mesh mesh = isosurface::surface_nets(unit_circle, grid);
 
