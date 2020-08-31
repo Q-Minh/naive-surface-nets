@@ -1,0 +1,3 @@
+[submodule "thirdparty/libigl"]
+	path = thirdparty/libigl
+	url = https://github.com/libigl/libigl/
