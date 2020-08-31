@@ -8,7 +8,7 @@ This repository implements the *Naive Surface Nets Algorithm* which is used to g
 
 This repository aims to provide a clear, simple and documented implementation of the naive surface nets algorithm that is (in my opinion) much needed. Most open source implementations are hard to read and poorly documented, assuming much prior knowledge from the readers or optimized at the expense of readability and simplicity. This repository's implementation assumes minimal prior knowledge of:
 - scalar functions defined in 3d space and how a level-set of such functions defines a 2d surface embedded in 3d space
-- basic data structures (arrays, vectors, dictionaries)
+- basic data structures (arrays, vectors, [dictionaries](https://en.cppreference.com/w/cpp/container/unordered_map))
 - the [shared vertex mesh data structure](http://www.enseignement.polytechnique.fr/informatique/INF562/Slides/MeshDataStructures.pdf)
 
 The [surface_nets.cpp](./src/surface_nets.cpp) file contains thorough documentation of the surface nets implementation in the form of comments. I hope this will be of help to many for learning mesh generation algorithms.
