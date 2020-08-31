@@ -24,7 +24,11 @@ The [surface_nets.cpp](./src/surface_nets.cpp) file contains thorough documentat
 - [Cmake](https://cmake.org/)
 - C++14 compiler
 
-The [CMakeLists.txt](./CMakeLists.txt) assumes that the Eigen, glfw and glad libraries are found by cmake `find_package` calls. Don't forget to clone the libigl submodule.
+The [CMakeLists.txt](./CMakeLists.txt) assumes that the Eigen, glfw and glad libraries are found by cmake `find_package` calls. Don't forget to clone the libigl submodule. You can easily use the [vcpkg](https://github.com/microsoft/vcpkg) package manager for C++ to install these dependencies.
+
+```
+$ <path to vcpkg executable>/vcpkg.exe install eigen3 glad glfw
+```
 
 ## Building
 
