@@ -223,7 +223,7 @@ common::igl_triangle_mesh surface_nets(
 		/*
 		* We approximate the generated mesh vertex using the geometric center of all 
 		* bipolar edges' intersection point with the implicit surface. The geometric 
-		* center if first computed in local voxel grid coordinates and will then be 
+		* center is first computed in local voxel grid coordinates and will then be 
 		* mapped to the mesh's coordinates later.
 		*/
 		float const number_of_intersection_points = static_cast<float>(edge_intersection_points.size());
