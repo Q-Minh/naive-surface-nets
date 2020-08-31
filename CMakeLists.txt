@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(isosurface-extraction)
+project(naive-surface-nets)
 
 add_executable(App)
 set_target_properties(App PROPERTIES CXX_STANDARD 14)
