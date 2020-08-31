@@ -368,7 +368,7 @@ common::igl_triangle_mesh surface_nets(
 		* 
 		* 
 		*           o----------o----------o
-		* 		   /|		  /|	     /|
+		* 		   /|         /|         /|
 		*         / |   0    / |        / | <---- this is the current active cube (i,j,k) in the above coordinate frame
 		*        o--|-------o--|-------o  |
 		*       /|  o------/|--o------/|--o
@@ -379,9 +379,9 @@ common::igl_triangle_mesh surface_nets(
 		*     |/ | /     |/	| /3    |/ | /
 		*     o--|/------o--|/------o  |/
 		*        o-------|--o-------|--o
-		* 	             | /        | /
-		* 	             |/	        |/
-		* 	             o----------o
+		*                | /        | /
+		*                |/         |/
+		*                o----------o
 		* 
 		* Indices of neighbor voxels are written on the top squares of the cubes.
 		* So upper cubes are 0, 1, 2 and lower cubes are 3, 4, 5. 
