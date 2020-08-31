@@ -368,7 +368,7 @@ common::igl_triangle_mesh surface_nets(
 		* 
 		* 
 		*           o----------o----------o
-		* 		   /|         /|         /|
+		*          /|         /|         /|
 		*         / |   0    / |        / | <---- this is the current active cube (i,j,k) in the above coordinate frame
 		*        o--|-------o--|-------o  |
 		*       /|  o------/|--o------/|--o
@@ -376,7 +376,7 @@ common::igl_triangle_mesh surface_nets(
 		*     o--|/-|--5-o--|/-|--4-o  |/ |
 		*     |  o--|----|--o--|----|--o  |
 		*     | /|  o----|-/|--o----|-/|--o
-		*     |/ | /     |/	| /3    |/ | /
+		*     |/ | /     |/ | /3    |/ | /
 		*     o--|/------o--|/------o  |/
 		*        o-------|--o-------|--o
 		*                | /        | /
