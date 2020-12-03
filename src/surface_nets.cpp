@@ -1275,11 +1275,20 @@ common::igl_triangle_mesh surface_nets(
     };
 
     // perform breadth first search starting from the hint in grid coordinates
-    auto const [ihint, jhint, khint] = get_grid_point_of(hint);
-    std::unordered_set<std::size_t> visited{};
-    active_cube_t root;
     using bfs_queue_type = std::queue<active_cube_t>;
-    bfs_queue_type bfs_queue;
+    using visited_type = std::unordered_set<std::size_t>;
+
+    auto const clear_memory = [](bfs_queue_type& queue, visited_type& visited) {
+        bfs_queue_type empty_queue{};
+        queue.swap(empty_queue);
+        visited_type empty_set{};
+        visited.swap(empty_set);
+    };
+
+    auto const [ihint, jhint, khint] = get_grid_point_of(hint);
+    visited_type visited{};
+    bfs_queue_type bfs_queue{};
+    active_cube_t root;
     bfs_queue.push(make_cube(ihint, jhint, khint));
     while (!bfs_queue.empty())
     {
@@ -1369,8 +1378,7 @@ common::igl_triangle_mesh surface_nets(
     // and perform vertex placement
     std::unordered_map<std::size_t, active_cube_t> active_cubes_map{};
 
-    bfs_queue.swap(bfs_queue_type{});
-    visited.clear();
+    clear_memory(bfs_queue, visited);
     bfs_queue.push(root);
     while (!bfs_queue.empty())
     {
