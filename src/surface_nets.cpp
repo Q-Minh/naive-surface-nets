@@ -567,6 +567,243 @@ common::igl_triangle_mesh surface_nets(
 }
 
 /**
+ * Starting from here on, we will define many helper functions to reduce
+ * code duplication in the optimized versions of surface nets. We don't
+ * use these helper functions in the first naive surface nets implementation
+ * so that we can explaine very step of that implementation. The optimized
+ * versions don't need to repeat the same comments as in the non-optimized
+ * version, so we simply reuse the helper functions there instead.
+ */
+
+point_t get_world_point_of(std::size_t i, std::size_t j, std::size_t k, regular_grid_t const& grid)
+{
+    return point_t{
+        grid.x + static_cast<float>(i) * grid.dx,
+        grid.y + static_cast<float>(j) * grid.dy,
+        grid.z + static_cast<float>(k) * grid.dz};
+};
+
+auto get_grid_point_of(point_t const& p, regular_grid_t const& grid)
+    -> std::tuple<std::size_t, std::size_t, std::size_t>
+{
+    // if x = grid.x + i*grid.dx, then i = (x - grid.x) / grid.dx
+    return std::make_tuple(
+        static_cast<std::size_t>((p.x - grid.x) / grid.dx),
+        static_cast<std::size_t>((p.y - grid.y) / grid.dy),
+        static_cast<std::size_t>((p.z - grid.z) / grid.dz));
+};
+
+std::size_t
+get_active_cube_index(std::size_t x, std::size_t y, std::size_t z, regular_grid_t const& grid)
+{
+    return x + (y * grid.sx) + (z * grid.sx * grid.sy);
+};
+
+auto get_ijk_from_idx(std::size_t active_cube_index, regular_grid_t const& grid)
+    -> std::tuple<std::size_t, std::size_t, std::size_t>
+{
+    std::size_t i = (active_cube_index) % grid.sx;
+    std::size_t j = (active_cube_index / grid.sx) % grid.sy;
+    std::size_t k = (active_cube_index) / (grid.sx * grid.sy);
+    return std::make_tuple(i, j, k);
+};
+
+std::array<point_t, 8> get_voxel_corner_grid_positions(std::size_t i, std::size_t j, std::size_t k)
+{
+    auto const ifloat = static_cast<float>(i);
+    auto const jfloat = static_cast<float>(j);
+    auto const kfloat = static_cast<float>(k);
+    return std::array<point_t, 8>{
+        point_t{ifloat, jfloat, kfloat},
+        point_t{ifloat + 1.f, jfloat, kfloat},
+        point_t{ifloat + 1.f, jfloat + 1.f, kfloat},
+        point_t{ifloat, jfloat + 1.f, kfloat},
+        point_t{ifloat, jfloat, kfloat + 1.f},
+        point_t{ifloat + 1.f, jfloat, kfloat + 1.f},
+        point_t{ifloat + 1.f, jfloat + 1.f, kfloat + 1.f},
+        point_t{ifloat, jfloat + 1.f, kfloat + 1.f}};
+};
+
+std::array<point_t, 8> get_voxel_corner_world_positions(
+    std::size_t i,
+    std::size_t j,
+    std::size_t k,
+    regular_grid_t const& grid)
+{
+    auto const ifloat = static_cast<float>(i);
+    auto const jfloat = static_cast<float>(j);
+    auto const kfloat = static_cast<float>(k);
+    return std::array<point_t, 8>{
+        point_t{grid.x + ifloat * grid.dx, grid.y + jfloat * grid.dy, grid.z + kfloat * grid.dz},
+        point_t{
+            grid.x + (ifloat + 1) * grid.dx,
+            grid.y + jfloat * grid.dy,
+            grid.z + kfloat * grid.dz},
+        point_t{
+            grid.x + (ifloat + 1) * grid.dx,
+            grid.y + (jfloat + 1) * grid.dy,
+            grid.z + kfloat * grid.dz},
+        point_t{
+            grid.x + ifloat * grid.dx,
+            grid.y + (jfloat + 1) * grid.dy,
+            grid.z + kfloat * grid.dz},
+        point_t{
+            grid.x + ifloat * grid.dx,
+            grid.y + jfloat * grid.dy,
+            grid.z + (kfloat + 1) * grid.dz},
+        point_t{
+            grid.x + (ifloat + 1) * grid.dx,
+            grid.y + jfloat * grid.dy,
+            grid.z + (kfloat + 1) * grid.dz},
+        point_t{
+            grid.x + (ifloat + 1) * grid.dx,
+            grid.y + (jfloat + 1) * grid.dy,
+            grid.z + (kfloat + 1) * grid.dz},
+        point_t{
+            grid.x + ifloat * grid.dx,
+            grid.y + (jfloat + 1) * grid.dy,
+            grid.z + (kfloat + 1) * grid.dz}};
+};
+
+std::array<float, 8> get_voxel_corner_values(
+    std::array<point_t, 8> const& voxel_corner_world_positions,
+    std::function<float(float, float, float)> const& implicit_function)
+{
+    return std::array<float, 8>{
+        implicit_function(
+            voxel_corner_world_positions[0].x,
+            voxel_corner_world_positions[0].y,
+            voxel_corner_world_positions[0].z),
+        implicit_function(
+            voxel_corner_world_positions[1].x,
+            voxel_corner_world_positions[1].y,
+            voxel_corner_world_positions[1].z),
+        implicit_function(
+            voxel_corner_world_positions[2].x,
+            voxel_corner_world_positions[2].y,
+            voxel_corner_world_positions[2].z),
+        implicit_function(
+            voxel_corner_world_positions[3].x,
+            voxel_corner_world_positions[3].y,
+            voxel_corner_world_positions[3].z),
+        implicit_function(
+            voxel_corner_world_positions[4].x,
+            voxel_corner_world_positions[4].y,
+            voxel_corner_world_positions[4].z),
+        implicit_function(
+            voxel_corner_world_positions[5].x,
+            voxel_corner_world_positions[5].y,
+            voxel_corner_world_positions[5].z),
+        implicit_function(
+            voxel_corner_world_positions[6].x,
+            voxel_corner_world_positions[6].y,
+            voxel_corner_world_positions[6].z),
+        implicit_function(
+            voxel_corner_world_positions[7].x,
+            voxel_corner_world_positions[7].y,
+            voxel_corner_world_positions[7].z)};
+};
+
+std::array<bool, 12> get_edge_bipolarity_array(
+    std::array<float, 8> const& voxel_corner_values,
+    float isovalue,
+    std::uint8_t const edges[12][2])
+{
+    auto const is_scalar_positive = [&isovalue](float scalar) -> bool {
+        return scalar >= isovalue;
+    };
+
+    auto const are_edge_scalars_bipolar =
+        [&is_scalar_positive](float scalar1, float scalar2) -> bool {
+        return is_scalar_positive(scalar1) != is_scalar_positive(scalar2);
+    };
+
+    std::array<bool, 12> const edge_bipolarity_array = {
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[0][0]],
+            voxel_corner_values[edges[0][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[1][0]],
+            voxel_corner_values[edges[1][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[2][0]],
+            voxel_corner_values[edges[2][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[3][0]],
+            voxel_corner_values[edges[3][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[4][0]],
+            voxel_corner_values[edges[4][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[5][0]],
+            voxel_corner_values[edges[5][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[6][0]],
+            voxel_corner_values[edges[6][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[7][0]],
+            voxel_corner_values[edges[7][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[8][0]],
+            voxel_corner_values[edges[8][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[9][0]],
+            voxel_corner_values[edges[9][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[10][0]],
+            voxel_corner_values[edges[10][1]]),
+        are_edge_scalars_bipolar(
+            voxel_corner_values[edges[11][0]],
+            voxel_corner_values[edges[11][1]])};
+
+    return edge_bipolarity_array;
+};
+
+bool get_is_cube_active(std::array<bool, 12> const& edge_bipolarity_array)
+{
+    // clang-format off
+		// an active voxel must have at least one bipolar edge
+		bool const is_voxel_active = edge_bipolarity_array[0] ||
+			edge_bipolarity_array[1] ||
+			edge_bipolarity_array[2] ||
+			edge_bipolarity_array[3] ||
+			edge_bipolarity_array[4] ||
+			edge_bipolarity_array[5] ||
+			edge_bipolarity_array[6] ||
+			edge_bipolarity_array[7] ||
+			edge_bipolarity_array[8] ||
+			edge_bipolarity_array[9] ||
+			edge_bipolarity_array[10] ||
+			edge_bipolarity_array[11];
+    // clang-format on
+
+    return is_voxel_active;
+};
+
+std::array<std::array<std::size_t, 3>, 3> get_adjacent_cubes_of_edge(
+    std::size_t i,
+    std::size_t j,
+    std::size_t k,
+    std::size_t edge,
+    std::int8_t const adjacent_cubes_of_edges[12][3][3])
+{
+    std::array<std::array<std::size_t, 3>, 3> adjacent_cubes;
+    adjacent_cubes[0] = {
+        i + adjacent_cubes_of_edges[edge][0][0],
+        j + adjacent_cubes_of_edges[edge][0][1],
+        k + adjacent_cubes_of_edges[edge][0][2]};
+    adjacent_cubes[1] = {
+        i + adjacent_cubes_of_edges[edge][1][0],
+        j + adjacent_cubes_of_edges[edge][1][1],
+        k + adjacent_cubes_of_edges[edge][1][2]};
+    adjacent_cubes[2] = {
+        i + adjacent_cubes_of_edges[edge][2][0],
+        j + adjacent_cubes_of_edges[edge][2][1],
+        k + adjacent_cubes_of_edges[edge][2][2]};
+    return adjacent_cubes;
+};
+
+/**
  * @brief Implements naive surface nets algorithm in parallel
  * @param implicit_function
  * @param grid
@@ -589,21 +826,6 @@ common::igl_triangle_mesh par_surface_nets(
     mesh_bounding_box_t const mesh_bounding_box{
         {grid.x, grid.y, grid.z},
         {grid.x + grid.sx * grid.dx, grid.y + grid.sy * grid.dy, grid.z + grid.sz * grid.dz}};
-
-    // mapping from 3d coordinates to 1d
-    auto const get_active_cube_index =
-        [](std::size_t x, std::size_t y, std::size_t z, regular_grid_t const& grid) -> std::size_t {
-        return x + (y * grid.sx) + (z * grid.sx * grid.sy);
-    };
-
-    auto const get_ijk_from_idx =
-        [](std::size_t active_cube_index,
-           regular_grid_t const& grid) -> std::tuple<std::size_t, std::size_t, std::size_t> {
-        std::size_t i = (active_cube_index) % grid.sx;
-        std::size_t j = (active_cube_index / grid.sx) % grid.sy;
-        std::size_t k = (active_cube_index) / (grid.sx * grid.sy);
-        return std::make_tuple(i, j, k);
-    };
 
     // mapping from active cube indices to vertex indices of the generated mesh
     std::unordered_map<std::size_t, std::uint64_t> active_cube_to_vertex_index_map{};
@@ -638,70 +860,20 @@ common::igl_triangle_mesh par_surface_nets(
                 }
 
                 // coordinates of voxel corners in voxel grid coordinate frame
-                point_t const voxel_corner_grid_positions[8] = {
-                    {static_cast<float>(i), static_cast<float>(j), static_cast<float>(k)},
-                    {static_cast<float>(i + 1), static_cast<float>(j), static_cast<float>(k)},
-                    {static_cast<float>(i + 1), static_cast<float>(j + 1), static_cast<float>(k)},
-                    {static_cast<float>(i), static_cast<float>(j + 1), static_cast<float>(k)},
-                    {static_cast<float>(i), static_cast<float>(j), static_cast<float>(k + 1)},
-                    {static_cast<float>(i + 1), static_cast<float>(j), static_cast<float>(k + 1)},
-                    {static_cast<float>(i + 1),
-                     static_cast<float>(j + 1),
-                     static_cast<float>(k + 1)},
-                    {static_cast<float>(i), static_cast<float>(j + 1), static_cast<float>(k + 1)},
-                };
+                std::array<point_t, 8> const voxel_corner_grid_positions =
+                    get_voxel_corner_grid_positions(i, j, k);
 
                 // coordinates of voxel corners in the mesh's coordinate frame
-                point_t const voxel_corner_positions[8] = {
-                    {grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz},
-                    {grid.x + (i + 1) * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz},
-                    {grid.x + (i + 1) * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k * grid.dz},
-                    {grid.x + i * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k * grid.dz},
-                    {grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + (k + 1) * grid.dz},
-                    {grid.x + (i + 1) * grid.dx, grid.y + j * grid.dy, grid.z + (k + 1) * grid.dz},
-                    {grid.x + (i + 1) * grid.dx,
-                     grid.y + (j + 1) * grid.dy,
-                     grid.z + (k + 1) * grid.dz},
-                    {grid.x + i * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + (k + 1) * grid.dz}};
+                std::array<point_t, 8> const voxel_corner_world_positions =
+                    get_voxel_corner_world_positions(i, j, k, grid);
 
                 // scalar values of the implicit function evaluated at cube vertices (voxel corners)
-                float const voxel_corner_values[8] = {
-                    implicit_function(
-                        voxel_corner_positions[0].x,
-                        voxel_corner_positions[0].y,
-                        voxel_corner_positions[0].z),
-                    implicit_function(
-                        voxel_corner_positions[1].x,
-                        voxel_corner_positions[1].y,
-                        voxel_corner_positions[1].z),
-                    implicit_function(
-                        voxel_corner_positions[2].x,
-                        voxel_corner_positions[2].y,
-                        voxel_corner_positions[2].z),
-                    implicit_function(
-                        voxel_corner_positions[3].x,
-                        voxel_corner_positions[3].y,
-                        voxel_corner_positions[3].z),
-                    implicit_function(
-                        voxel_corner_positions[4].x,
-                        voxel_corner_positions[4].y,
-                        voxel_corner_positions[4].z),
-                    implicit_function(
-                        voxel_corner_positions[5].x,
-                        voxel_corner_positions[5].y,
-                        voxel_corner_positions[5].z),
-                    implicit_function(
-                        voxel_corner_positions[6].x,
-                        voxel_corner_positions[6].y,
-                        voxel_corner_positions[6].z),
-                    implicit_function(
-                        voxel_corner_positions[7].x,
-                        voxel_corner_positions[7].y,
-                        voxel_corner_positions[7].z)};
+                std::array<float, 8> const voxel_corner_values =
+                    get_voxel_corner_values(voxel_corner_world_positions, implicit_function);
 
                 // the edges provide indices to the corresponding current cube's vertices (voxel
                 // corners)
-                std::size_t const edges[12][2] = {
+                std::uint8_t constexpr edges[12][2] = {
                     {0u, 1u},
                     {1u, 2u},
                     {2u, 3u},
@@ -715,74 +887,11 @@ common::igl_triangle_mesh par_surface_nets(
                     {2u, 6u},
                     {3u, 7u}};
 
-                auto const is_scalar_positive = [](float scalar, float isovalue) -> bool {
-                    return scalar >= isovalue;
-                };
-
-                auto const are_edge_scalars_bipolar =
-                    [&is_scalar_positive](float scalar1, float scalar2, float isovalue) -> bool {
-                    return is_scalar_positive(scalar1, isovalue) !=
-                           is_scalar_positive(scalar2, isovalue);
-                };
-
-                bool const edge_bipolarity_array[12] = {
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[0][0]],
-                        voxel_corner_values[edges[0][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[1][0]],
-                        voxel_corner_values[edges[1][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[2][0]],
-                        voxel_corner_values[edges[2][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[3][0]],
-                        voxel_corner_values[edges[3][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[4][0]],
-                        voxel_corner_values[edges[4][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[5][0]],
-                        voxel_corner_values[edges[5][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[6][0]],
-                        voxel_corner_values[edges[6][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[7][0]],
-                        voxel_corner_values[edges[7][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[8][0]],
-                        voxel_corner_values[edges[8][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[9][0]],
-                        voxel_corner_values[edges[9][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[10][0]],
-                        voxel_corner_values[edges[10][1]],
-                        isovalue),
-                    are_edge_scalars_bipolar(
-                        voxel_corner_values[edges[11][0]],
-                        voxel_corner_values[edges[11][1]],
-                        isovalue),
-                };
+                std::array<bool, 12> const edge_bipolarity_array =
+                    get_edge_bipolarity_array(voxel_corner_values, isovalue, edges);
 
                 // an active voxel must have at least one bipolar edge
-                bool const is_voxel_active = edge_bipolarity_array[0] || edge_bipolarity_array[1] ||
-                                             edge_bipolarity_array[2] || edge_bipolarity_array[3] ||
-                                             edge_bipolarity_array[4] || edge_bipolarity_array[5] ||
-                                             edge_bipolarity_array[6] || edge_bipolarity_array[7] ||
-                                             edge_bipolarity_array[8] || edge_bipolarity_array[9] ||
-                                             edge_bipolarity_array[10] || edge_bipolarity_array[11];
+                bool const is_voxel_active = get_is_cube_active(edge_bipolarity_array);
 
                 // cubes that are not active do not generate mesh vertices
                 if (!is_voxel_active)
@@ -814,10 +923,12 @@ common::igl_triangle_mesh par_surface_nets(
 
                 float const number_of_intersection_points =
                     static_cast<float>(edge_intersection_points.size());
+
                 point_t const sum_of_intersection_points = std::accumulate(
                     edge_intersection_points.cbegin(),
                     edge_intersection_points.cend(),
                     point_t{0.f, 0.f, 0.f});
+
                 point_t const geometric_center_of_edge_intersection_points =
                     sum_of_intersection_points / number_of_intersection_points;
 
@@ -876,15 +987,14 @@ common::igl_triangle_mesh par_surface_nets(
                 {i, j, k - 1},
                 {i - 1, j, k - 1}};
 
-            point_t const voxel_corners_of_interest[4] = {
-                // vertex 0
-                {grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz},
-                // vertex 4
-                {grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + (k + 1) * grid.dz},
-                // vertex 3
-                {grid.x + i * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k * grid.dz},
-                // vertex 1
-                {grid.x + (i + 1) * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz}};
+            point_t const voxel_corners_of_interest[4] = {// vertex 0
+                                                          get_world_point_of(i, j, k, grid),
+                                                          // vertex 4
+                                                          get_world_point_of(i, j, k + 1, grid),
+                                                          // vertex 3
+                                                          get_world_point_of(i, j + 1, k, grid),
+                                                          // vertex 1
+                                                          get_world_point_of(i + 1, j, k, grid)};
 
             float const edge_scalar_values[3][2] = {// directed edge (0,4)
                                                     {implicit_function(
@@ -1032,22 +1142,6 @@ common::igl_triangle_mesh surface_nets(
 
     isosurface::mesh mesh{};
 
-    auto const get_world_point_of = [&grid](auto i, auto j, auto k) -> point_type {
-        return point_type{
-            grid.x + static_cast<scalar_type>(i) * grid.dx,
-            grid.y + static_cast<scalar_type>(j) * grid.dy,
-            grid.z + static_cast<scalar_type>(k) * grid.dz};
-    };
-
-    auto const get_grid_point_of =
-        [&grid](point_type const& p) -> std::tuple<std::size_t, std::size_t, std::size_t> {
-        // if x = grid.x + i*grid.dx, then i = (x - grid.x) / grid.dx
-        return std::make_tuple(
-            static_cast<std::size_t>((p.x - grid.x) / grid.dx),
-            static_cast<std::size_t>((p.y - grid.y) / grid.dy),
-            static_cast<std::size_t>((p.z - grid.z) / grid.dz));
-    };
-
     // bounding box of the mesh in coordinate frame of the mesh
     struct mesh_bounding_box_t
     {
@@ -1061,116 +1155,9 @@ common::igl_triangle_mesh surface_nets(
          grid.y + static_cast<scalar_type>(grid.sy) * grid.dy,
          grid.z + static_cast<scalar_type>(grid.sz) * grid.dz}};
 
-    // mapping from 3d grid coordinates to 1d
-    auto const get_active_cube_index =
-        [&grid](std::size_t x, std::size_t y, std::size_t z) -> std::size_t {
-        return x + (y * grid.sx) + (z * grid.sx * grid.sy);
-    };
-
-    // mapping from 1d index to 3d grid coordinates
-    auto const get_ijk_from_idx =
-        [&grid](
-            std::size_t active_cube_index) -> std::tuple<std::size_t, std::size_t, std::size_t> {
-        std::size_t i = (active_cube_index) % grid.sx;
-        std::size_t j = (active_cube_index / grid.sx) % grid.sy;
-        std::size_t k = (active_cube_index) / (grid.sx * grid.sy);
-        return std::make_tuple(i, j, k);
-    };
-
     // setup useful functions for surface nets active cube search
-    auto const get_voxel_corner_grid_positions = [](std::size_t i, std::size_t j, std::size_t k) {
-        auto const ifloat = static_cast<scalar_type>(i);
-        auto const jfloat = static_cast<scalar_type>(j);
-        auto const kfloat = static_cast<scalar_type>(k);
-        return std::array<point_type, 8>{
-            point_type{ifloat, jfloat, kfloat},
-            point_type{ifloat + 1.f, jfloat, kfloat},
-            point_type{ifloat + 1.f, jfloat + 1.f, kfloat},
-            point_type{ifloat, jfloat + 1.f, kfloat},
-            point_type{ifloat, jfloat, kfloat + 1.f},
-            point_type{ifloat + 1.f, jfloat, kfloat + 1.f},
-            point_type{ifloat + 1.f, jfloat + 1.f, kfloat + 1.f},
-            point_type{ifloat, jfloat + 1.f, kfloat + 1.f}};
-    };
 
-    auto const get_voxel_corner_world_positions =
-        [&grid](std::size_t i, std::size_t j, std::size_t k) {
-            auto const ifloat = static_cast<scalar_type>(i);
-            auto const jfloat = static_cast<scalar_type>(j);
-            auto const kfloat = static_cast<scalar_type>(k);
-            return std::array<point_type, 8>{
-                point_type{
-                    grid.x + ifloat * grid.dx,
-                    grid.y + jfloat * grid.dy,
-                    grid.z + kfloat * grid.dz},
-                point_type{
-                    grid.x + (ifloat + 1) * grid.dx,
-                    grid.y + jfloat * grid.dy,
-                    grid.z + kfloat * grid.dz},
-                point_type{
-                    grid.x + (ifloat + 1) * grid.dx,
-                    grid.y + (jfloat + 1) * grid.dy,
-                    grid.z + kfloat * grid.dz},
-                point_type{
-                    grid.x + ifloat * grid.dx,
-                    grid.y + (jfloat + 1) * grid.dy,
-                    grid.z + kfloat * grid.dz},
-                point_type{
-                    grid.x + ifloat * grid.dx,
-                    grid.y + jfloat * grid.dy,
-                    grid.z + (kfloat + 1) * grid.dz},
-                point_type{
-                    grid.x + (ifloat + 1) * grid.dx,
-                    grid.y + jfloat * grid.dy,
-                    grid.z + (kfloat + 1) * grid.dz},
-                point_type{
-                    grid.x + (ifloat + 1) * grid.dx,
-                    grid.y + (jfloat + 1) * grid.dy,
-                    grid.z + (kfloat + 1) * grid.dz},
-                point_type{
-                    grid.x + ifloat * grid.dx,
-                    grid.y + (jfloat + 1) * grid.dy,
-                    grid.z + (kfloat + 1) * grid.dz}};
-        };
-
-    auto const get_voxel_corner_values =
-        [&implicit_function](std::array<point_type, 8> const& voxel_corner_world_positions) {
-            return std::array<scalar_type, 8>{
-                implicit_function(
-                    voxel_corner_world_positions[0].x,
-                    voxel_corner_world_positions[0].y,
-                    voxel_corner_world_positions[0].z),
-                implicit_function(
-                    voxel_corner_world_positions[1].x,
-                    voxel_corner_world_positions[1].y,
-                    voxel_corner_world_positions[1].z),
-                implicit_function(
-                    voxel_corner_world_positions[2].x,
-                    voxel_corner_world_positions[2].y,
-                    voxel_corner_world_positions[2].z),
-                implicit_function(
-                    voxel_corner_world_positions[3].x,
-                    voxel_corner_world_positions[3].y,
-                    voxel_corner_world_positions[3].z),
-                implicit_function(
-                    voxel_corner_world_positions[4].x,
-                    voxel_corner_world_positions[4].y,
-                    voxel_corner_world_positions[4].z),
-                implicit_function(
-                    voxel_corner_world_positions[5].x,
-                    voxel_corner_world_positions[5].y,
-                    voxel_corner_world_positions[5].z),
-                implicit_function(
-                    voxel_corner_world_positions[6].x,
-                    voxel_corner_world_positions[6].y,
-                    voxel_corner_world_positions[6].z),
-                implicit_function(
-                    voxel_corner_world_positions[7].x,
-                    voxel_corner_world_positions[7].y,
-                    voxel_corner_world_positions[7].z)};
-        };
-
-    std::size_t constexpr edges[12][2] = {
+    std::uint8_t constexpr edges[12][2] = {
         {0u, 1u},
         {1u, 2u},
         {2u, 3u},
@@ -1184,78 +1171,6 @@ common::igl_triangle_mesh surface_nets(
         {2u, 6u},
         {3u, 7u}};
 
-    auto const get_edge_bipolarity_array =
-        [&isovalue, &edges](std::array<scalar_type, 8> const& voxel_corner_values) {
-            auto const is_scalar_positive = [&isovalue](scalar_type scalar) -> bool {
-                return scalar >= isovalue;
-            };
-
-            auto const are_edge_scalars_bipolar =
-                [&is_scalar_positive](scalar_type scalar1, scalar_type scalar2) -> bool {
-                return is_scalar_positive(scalar1) != is_scalar_positive(scalar2);
-            };
-
-            std::array<bool, 12> const edge_bipolarity_array = {
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[0][0]],
-                    voxel_corner_values[edges[0][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[1][0]],
-                    voxel_corner_values[edges[1][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[2][0]],
-                    voxel_corner_values[edges[2][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[3][0]],
-                    voxel_corner_values[edges[3][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[4][0]],
-                    voxel_corner_values[edges[4][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[5][0]],
-                    voxel_corner_values[edges[5][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[6][0]],
-                    voxel_corner_values[edges[6][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[7][0]],
-                    voxel_corner_values[edges[7][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[8][0]],
-                    voxel_corner_values[edges[8][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[9][0]],
-                    voxel_corner_values[edges[9][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[10][0]],
-                    voxel_corner_values[edges[10][1]]),
-                are_edge_scalars_bipolar(
-                    voxel_corner_values[edges[11][0]],
-                    voxel_corner_values[edges[11][1]])};
-
-            return edge_bipolarity_array;
-        };
-
-    auto const get_is_cube_active = [](std::array<bool, 12> const& edge_bipolarity_array) -> bool {
-        // clang-format off
-		// an active voxel must have at least one bipolar edge
-		bool const is_voxel_active = edge_bipolarity_array[0] ||
-			edge_bipolarity_array[1] ||
-			edge_bipolarity_array[2] ||
-			edge_bipolarity_array[3] ||
-			edge_bipolarity_array[4] ||
-			edge_bipolarity_array[5] ||
-			edge_bipolarity_array[6] ||
-			edge_bipolarity_array[7] ||
-			edge_bipolarity_array[8] ||
-			edge_bipolarity_array[9] ||
-			edge_bipolarity_array[10] ||
-			edge_bipolarity_array[11];
-        // clang-format on
-
-        return is_voxel_active;
-    };
-
     // use hint as starting point of a breadth first search for all active cubes
     struct active_cube_t
     {
@@ -1264,19 +1179,19 @@ common::igl_triangle_mesh surface_nets(
         std::uint64_t vertex_idx;
     };
 
-    auto const make_cube = [&get_voxel_corner_values,
-                            &get_voxel_corner_world_positions,
-                            &get_active_cube_index](std::size_t i, std::size_t j, std::size_t k) {
+    auto const make_cube = [&grid,
+                            &implicit_function](std::size_t i, std::size_t j, std::size_t k) {
         active_cube_t cube{};
-        cube.idx                                = get_active_cube_index(i, j, k);
-        auto const voxel_corner_world_positions = get_voxel_corner_world_positions(i, j, k);
-        cube.voxel_corner_values = get_voxel_corner_values(voxel_corner_world_positions);
+        cube.idx                                = get_active_cube_index(i, j, k, grid);
+        auto const voxel_corner_world_positions = get_voxel_corner_world_positions(i, j, k, grid);
+        cube.voxel_corner_values =
+            get_voxel_corner_values(voxel_corner_world_positions, implicit_function);
         return cube;
     };
 
     // perform breadth first search starting from the hint in grid coordinates
     using bfs_queue_type = std::queue<active_cube_t>;
-    using visited_type = std::unordered_set<std::size_t>;
+    using visited_type   = std::unordered_set<std::size_t>;
 
     auto const clear_memory = [](bfs_queue_type& queue, visited_type& visited) {
         bfs_queue_type empty_queue{};
@@ -1285,7 +1200,8 @@ common::igl_triangle_mesh surface_nets(
         visited.swap(empty_set);
     };
 
-    auto const [ihint, jhint, khint] = get_grid_point_of(hint);
+    // search for the first active cube around the hint
+    auto const [ihint, jhint, khint] = get_grid_point_of(hint, grid);
     visited_type visited{};
     bfs_queue_type bfs_queue{};
     active_cube_t root;
@@ -1300,8 +1216,9 @@ common::igl_triangle_mesh surface_nets(
         bfs_queue.pop();
 
         visited.insert(cube.idx);
-        auto const edge_bipolarity_array = get_edge_bipolarity_array(cube.voxel_corner_values);
-        bool const is_cube_active        = get_is_cube_active(edge_bipolarity_array);
+        auto const edge_bipolarity_array =
+            get_edge_bipolarity_array(cube.voxel_corner_values, isovalue, edges);
+        bool const is_cube_active = get_is_cube_active(edge_bipolarity_array);
         if (is_cube_active)
         {
             root = cube;
@@ -1310,7 +1227,7 @@ common::igl_triangle_mesh surface_nets(
 
         // if cube is inactive, add cube neighbors to the search queue if they haven't been visited
         // yet
-        auto const [i, j, k]                  = get_ijk_from_idx(cube.idx);
+        auto const [i, j, k]                  = get_ijk_from_idx(cube.idx, grid);
         std::size_t const neighbor_ijks[6][3] = {
             {i + 1, j, k},
             {i - 1, j, k},
@@ -1319,12 +1236,36 @@ common::igl_triangle_mesh surface_nets(
             {i, j, k + 1},
             {i, j, k - 1}};
         std::uint64_t const neighbor_indexes[6] = {
-            get_active_cube_index(neighbor_ijks[0][0], neighbor_ijks[0][1], neighbor_ijks[0][2]),
-            get_active_cube_index(neighbor_ijks[1][0], neighbor_ijks[1][1], neighbor_ijks[1][2]),
-            get_active_cube_index(neighbor_ijks[2][0], neighbor_ijks[2][1], neighbor_ijks[2][2]),
-            get_active_cube_index(neighbor_ijks[3][0], neighbor_ijks[3][1], neighbor_ijks[3][2]),
-            get_active_cube_index(neighbor_ijks[4][0], neighbor_ijks[4][1], neighbor_ijks[4][2]),
-            get_active_cube_index(neighbor_ijks[5][0], neighbor_ijks[5][1], neighbor_ijks[5][2])};
+            get_active_cube_index(
+                neighbor_ijks[0][0],
+                neighbor_ijks[0][1],
+                neighbor_ijks[0][2],
+                grid),
+            get_active_cube_index(
+                neighbor_ijks[1][0],
+                neighbor_ijks[1][1],
+                neighbor_ijks[1][2],
+                grid),
+            get_active_cube_index(
+                neighbor_ijks[2][0],
+                neighbor_ijks[2][1],
+                neighbor_ijks[2][2],
+                grid),
+            get_active_cube_index(
+                neighbor_ijks[3][0],
+                neighbor_ijks[3][1],
+                neighbor_ijks[3][2],
+                grid),
+            get_active_cube_index(
+                neighbor_ijks[4][0],
+                neighbor_ijks[4][1],
+                neighbor_ijks[4][2],
+                grid),
+            get_active_cube_index(
+                neighbor_ijks[5][0],
+                neighbor_ijks[5][1],
+                neighbor_ijks[5][2],
+                grid)};
 
         for (auto l = 0u; l < 6u; ++l)
         {
@@ -1335,6 +1276,7 @@ common::igl_triangle_mesh surface_nets(
             }
         }
     }
+    clear_memory(bfs_queue, visited);
 
     // if an edge is bipolar, it means that
     // the other three cubes sharing this edges are
@@ -1354,31 +1296,10 @@ common::igl_triangle_mesh surface_nets(
         {{-1, 0, 0}, {-1, 1, 0}, {0, 1, 0}},
     };
 
-    auto const get_adjacent_cubes_of_edge =
-        [&adjacent_cubes_of_edges,
-         &get_active_cube_index,
-         &get_ijk_from_idx](std::size_t i, std::size_t j, std::size_t k, std::size_t edge) {
-            std::array<std::array<std::size_t, 3>, 3> adjacent_cubes;
-            adjacent_cubes[0] = {
-                i + adjacent_cubes_of_edges[edge][0][0],
-                j + adjacent_cubes_of_edges[edge][0][1],
-                k + adjacent_cubes_of_edges[edge][0][2]};
-            adjacent_cubes[1] = {
-                i + adjacent_cubes_of_edges[edge][1][0],
-                j + adjacent_cubes_of_edges[edge][1][1],
-                k + adjacent_cubes_of_edges[edge][1][2]};
-            adjacent_cubes[2] = {
-                i + adjacent_cubes_of_edges[edge][2][0],
-                j + adjacent_cubes_of_edges[edge][2][1],
-                k + adjacent_cubes_of_edges[edge][2][2]};
-            return adjacent_cubes;
-        };
-
-    // now look at active cubes only which are connected to the root
-    // and perform vertex placement
+    // Now look at active cubes only which are connected to the root
+    // and perform vertex placement. This is the main iteration loop 
+    // over all active cubes connected to the root active cube.
     std::unordered_map<std::size_t, active_cube_t> active_cubes_map{};
-
-    clear_memory(bfs_queue, visited);
     bfs_queue.push(root);
     while (!bfs_queue.empty())
     {
@@ -1387,11 +1308,11 @@ common::igl_triangle_mesh surface_nets(
         if (active_cubes_map.count(active_cube.idx) == 1)
             continue;
 
-        auto const [i, j, k]                   = get_ijk_from_idx(active_cube.idx);
+        auto const [i, j, k]                   = get_ijk_from_idx(active_cube.idx, grid);
         auto const voxel_corner_grid_positions = get_voxel_corner_grid_positions(i, j, k);
 
         auto const edge_bipolarity_array =
-            get_edge_bipolarity_array(active_cube.voxel_corner_values);
+            get_edge_bipolarity_array(active_cube.voxel_corner_values, isovalue, edges);
 
         std::vector<point_type> edge_intersection_points;
 
@@ -1403,20 +1324,24 @@ common::igl_triangle_mesh surface_nets(
 
             // since this edge is bipolar, all cubes adjacent to it
             // are also active, so we add them to the queue
-            auto const adjacent_cubes_of_edge = get_adjacent_cubes_of_edge(i, j, k, e);
+            auto const adjacent_cubes_of_edge =
+                get_adjacent_cubes_of_edge(i, j, k, e, adjacent_cubes_of_edges);
 
             auto const c1 = get_active_cube_index(
                 adjacent_cubes_of_edge[0][0],
                 adjacent_cubes_of_edge[0][1],
-                adjacent_cubes_of_edge[0][2]);
+                adjacent_cubes_of_edge[0][2],
+                grid);
             auto const c2 = get_active_cube_index(
                 adjacent_cubes_of_edge[1][0],
                 adjacent_cubes_of_edge[1][1],
-                adjacent_cubes_of_edge[1][2]);
+                adjacent_cubes_of_edge[1][2],
+                grid);
             auto const c3 = get_active_cube_index(
                 adjacent_cubes_of_edge[2][0],
                 adjacent_cubes_of_edge[2][1],
-                adjacent_cubes_of_edge[2][2]);
+                adjacent_cubes_of_edge[2][2],
+                grid);
 
             if (active_cubes_map.count(c1) == 0)
             {
@@ -1484,8 +1409,8 @@ common::igl_triangle_mesh surface_nets(
 
     using key_value_type = typename decltype(active_cubes_map)::value_type;
 
+    // triangulate the same way as before
     std::mutex sync;
-
     std::for_each(
         std::execution::par,
         active_cubes_map.cbegin(),
@@ -1498,7 +1423,7 @@ common::igl_triangle_mesh surface_nets(
                 return (i == 0 || j == 0 || k == 0);
             };
 
-            auto const [i, j, k] = get_ijk_from_idx(active_cube_index);
+            auto const [i, j, k] = get_ijk_from_idx(active_cube_index, grid);
 
             if (is_lower_boundary_cube(i, j, k))
                 return;
@@ -1514,13 +1439,13 @@ common::igl_triangle_mesh surface_nets(
 
             point_type const voxel_corners_of_interest[4] = {
                 // vertex 0,
-                get_world_point_of(i, j, k),
+                get_world_point_of(i, j, k, grid),
                 // vertex 4
-                get_world_point_of(i, j, k+1),
+                get_world_point_of(i, j, k+1, grid),
                 // vertex 3
-                get_world_point_of(i, j+1, k),
+                get_world_point_of(i, j+1, k, grid),
                 // vertex 1
-                get_world_point_of(i+1, j, k)
+                get_world_point_of(i+1, j, k, grid)
             };
             // clang-format on
 
@@ -1541,17 +1466,20 @@ common::igl_triangle_mesh surface_nets(
                 auto const neighbor1 = get_active_cube_index(
                     neighbor_grid_positions[quad_neighbors[idx][0]][0],
                     neighbor_grid_positions[quad_neighbors[idx][0]][1],
-                    neighbor_grid_positions[quad_neighbors[idx][0]][2]);
+                    neighbor_grid_positions[quad_neighbors[idx][0]][2],
+                    grid);
 
                 auto const neighbor2 = get_active_cube_index(
                     neighbor_grid_positions[quad_neighbors[idx][1]][0],
                     neighbor_grid_positions[quad_neighbors[idx][1]][1],
-                    neighbor_grid_positions[quad_neighbors[idx][1]][2]);
+                    neighbor_grid_positions[quad_neighbors[idx][1]][2],
+                    grid);
 
                 auto const neighbor3 = get_active_cube_index(
                     neighbor_grid_positions[quad_neighbors[idx][2]][0],
                     neighbor_grid_positions[quad_neighbors[idx][2]][1],
-                    neighbor_grid_positions[quad_neighbors[idx][2]][2]);
+                    neighbor_grid_positions[quad_neighbors[idx][2]][2],
+                    grid);
 
                 if (active_cubes_map.count(neighbor1) == 0 ||
                     active_cubes_map.count(neighbor2) == 0 ||
