@@ -762,19 +762,20 @@ std::array<bool, 12> get_edge_bipolarity_array(
 bool get_is_cube_active(std::array<bool, 12> const& edge_bipolarity_array)
 {
     // clang-format off
-		// an active voxel must have at least one bipolar edge
-		bool const is_voxel_active = edge_bipolarity_array[0] ||
-			edge_bipolarity_array[1] ||
-			edge_bipolarity_array[2] ||
-			edge_bipolarity_array[3] ||
-			edge_bipolarity_array[4] ||
-			edge_bipolarity_array[5] ||
-			edge_bipolarity_array[6] ||
-			edge_bipolarity_array[7] ||
-			edge_bipolarity_array[8] ||
-			edge_bipolarity_array[9] ||
-			edge_bipolarity_array[10] ||
-			edge_bipolarity_array[11];
+    // an active voxel must have at least one bipolar edge
+    bool const is_voxel_active = 
+        edge_bipolarity_array[0] ||
+        edge_bipolarity_array[1] ||
+        edge_bipolarity_array[2] ||
+        edge_bipolarity_array[3] ||
+        edge_bipolarity_array[4] ||
+        edge_bipolarity_array[5] ||
+        edge_bipolarity_array[6] ||
+        edge_bipolarity_array[7] ||
+        edge_bipolarity_array[8] ||
+        edge_bipolarity_array[9] ||
+        edge_bipolarity_array[10] ||
+        edge_bipolarity_array[11];
     // clang-format on
 
     return is_voxel_active;
@@ -837,14 +838,11 @@ common::igl_triangle_mesh par_surface_nets(
     std::size_t longest_dimension_size =
         is_x_longest_dimension ? grid.sx : is_y_longest_dimension ? grid.sy : grid.sz;
 
-    std::vector<std::size_t> steps_along_longest_dimension(longest_dimension_size, 0u);
-    std::iota(steps_along_longest_dimension.begin(), steps_along_longest_dimension.end(), 0u);
-
-    std::vector<std::size_t> kv(longest_dimension_size, 0u);
-    std::iota(kv.begin(), kv.end(), 0u);
+    std::vector<std::size_t> ks(longest_dimension_size, 0u);
+    std::iota(ks.begin(), ks.end(), 0u);
 
     std::mutex sync;
-    std::for_each(std::execution::par, kv.cbegin(), kv.cend(), [&](std::size_t k) {
+    std::for_each(std::execution::par, ks.cbegin(), ks.cend(), [&](std::size_t k) {
         for (std::size_t j = 0; j < grid.sy; ++j)
         {
             for (std::size_t i = 0; i < grid.sx; ++i)
