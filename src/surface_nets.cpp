@@ -1025,7 +1025,7 @@ common::igl_triangle_mesh surface_nets(
     regular_grid_t const& grid,
     point_t const& hint,
     float const isovalue,
-    std::size_t max_size_of_breadth_first_search_queue = 32'768u)
+    std::size_t max_size_of_breadth_first_search_queue)
 {
     using point_type  = point_t;
     using scalar_type = float;
