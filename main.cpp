@@ -63,14 +63,14 @@ int main(int argc, char** argv)
                 static float float_step      = 0.1f;
                 static float float_step_fast = 1.f;
                 ImGui::Text("Min grid point");
-                ImGui::InputFloat("x", &min.x, float_step, float_step_fast, "%.3f");
-                ImGui::InputFloat("y", &min.y, float_step, float_step_fast, "%.3f");
-                ImGui::InputFloat("z", &min.z, float_step, float_step_fast, "%.3f");
+                ImGui::InputFloat("x##min", &min.x, float_step, float_step_fast, "%.3f");
+                ImGui::InputFloat("y##min", &min.y, float_step, float_step_fast, "%.3f");
+                ImGui::InputFloat("z##min", &min.z, float_step, float_step_fast, "%.3f");
 
                 ImGui::Text("Max grid point");
-                ImGui::InputFloat("x", &max.x, float_step, float_step_fast, "%.3f");
-                ImGui::InputFloat("y", &max.y, float_step, float_step_fast, "%.3f");
-                ImGui::InputFloat("z", &max.z, float_step, float_step_fast, "%.3f");
+                ImGui::InputFloat("x##max", &max.x, float_step, float_step_fast, "%.3f");
+                ImGui::InputFloat("y##max", &max.y, float_step, float_step_fast, "%.3f");
+                ImGui::InputFloat("z##max", &max.z, float_step, float_step_fast, "%.3f");
 
                 ImGui::Text("Dimensions");
                 static std::size_t int_step      = 1u;
