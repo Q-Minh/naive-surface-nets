@@ -17,28 +17,18 @@ The [surface_nets.cpp](./src/surface_nets.cpp) file contains thorough documentat
 
 ## Dependencies
 
-- [Eigen3](http://eigen.tuxfamily.org/index.php?title=Main_Page)
-- [glfw](https://www.glfw.org/)
-- [glad](https://glad.dav1d.de/)
 - [libigl](https://github.com/libigl/libigl/)
-- [Cmake](https://cmake.org/)
-- C++14 compiler
-
-The [CMakeLists.txt](./CMakeLists.txt) assumes that the Eigen, glfw and glad libraries are found by cmake `find_package` calls. Don't forget to clone the libigl submodule. You can easily use the [vcpkg](https://github.com/microsoft/vcpkg) package manager for C++ to install these dependencies.
-
-```
-$ <path to vcpkg executable>/vcpkg.exe install eigen3 glad glfw
-```
+- [CMake](https://cmake.org/)
+- C++17 compiler
 
 ## Building
 
 ```
-$ git clone --recurse-submodules https://github.com/Q-Minh/naive-surface-nets
+$ git clone https://github.com/Q-Minh/naive-surface-nets
 $ cd naive-surface-nets
-$ mkdir build
-$ cd build
-$ cmake .. -G <your build system generator> # -DCMAKE_TOOLCHAIN_FILE=<path to vcpkg>/scripts/buildsystems/vcpkg.cmake if you are using vcpkg
-$ cmake --build .
+$ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+$ cmake --build build --target App --config Release
+# generated executable will be at path ./build/Release/App.exe or ./build/App
 ```
 
 ## Helpful Documentation
