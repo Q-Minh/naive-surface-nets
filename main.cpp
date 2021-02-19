@@ -104,27 +104,25 @@ int main(int argc, char** argv)
             {
                 auto const grid = get_padded_voxel_grid(min, max, dimensions);
 
-                std::ostringstream oss{};
+                // std::ostringstream oss{};
 
                 auto start                     = std::chrono::high_resolution_clock::now();
                 common::igl_triangle_mesh mesh = isosurface::surface_nets(unit_circle, grid);
                 auto end                       = std::chrono::high_resolution_clock::now();
-                oss << "Surface Nets with no hint took:\n"
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                    << " ms\n";
 
-                sn_str = oss.str();
-                oss.flush();
+                sn_str = "Sequential surface Nets took:\n";
+                sn_str += std::to_string(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+                sn_str += " ms\n";
 
                 start = std::chrono::high_resolution_clock::now();
                 mesh  = isosurface::par_surface_nets(unit_circle, grid);
                 end   = std::chrono::high_resolution_clock::now();
-                oss << "Parallel surface Nets took:\n"
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                    << " ms\n";
 
-                sn_parallel_str = oss.str();
-                oss.flush();
+                sn_parallel_str = "Parallel surface Nets took:\n";
+                sn_parallel_str += std::to_string(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+                sn_parallel_str += " ms\n";
 
                 start = std::chrono::high_resolution_clock::now();
                 mesh  = isosurface::surface_nets(
@@ -132,12 +130,12 @@ int main(int argc, char** argv)
                     grid,
                     isosurface::point_t{0.f, 0.f, .99f});
                 end = std::chrono::high_resolution_clock::now();
-                oss << "Surface Nets with relatively good hint\nand parallel triangulation took:\n"
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                    << " ms\n";
 
-                sn_hint_str = oss.str();
-                oss.flush();
+                sn_hint_str =
+                    "Surface Nets with relatively good hint\nand parallel triangulation took:\n";
+                sn_hint_str += std::to_string(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+                sn_hint_str += " ms\n";
 
                 viewer.data().clear();
                 viewer.data().set_mesh(mesh.V, mesh.F);
