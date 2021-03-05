@@ -39,9 +39,11 @@ common::igl_triangle_mesh surface_nets(
     };
 
     // bounding box of the mesh in coordinate frame of the mesh
+    // clang-format off
     mesh_bounding_box_t const mesh_bounding_box{
-        {grid.x, grid.y, grid.z},
+        {grid.x                    , grid.y                    , grid.z                    },
         {grid.x + grid.sx * grid.dx, grid.y + grid.sy * grid.dy, grid.z + grid.sz * grid.dz}};
+    // clang-format on
 
     // mapping from 3d coordinates to 1d
     auto const get_active_cube_index =
@@ -115,27 +117,27 @@ common::igl_triangle_mesh surface_nets(
 		// coordinates of voxel corners in voxel grid coordinate frame
 		point_t const voxel_corner_grid_positions[8] =
 		{
-			{ static_cast<float>(i), static_cast<float>(j), static_cast<float>(k) },
-			{ static_cast<float>(i + 1), static_cast<float>(j), static_cast<float>(k) },
-			{ static_cast<float>(i + 1), static_cast<float>(j + 1), static_cast<float>(k) },
-			{ static_cast<float>(i), static_cast<float>(j + 1), static_cast<float>(k) },
-			{ static_cast<float>(i), static_cast<float>(j), static_cast<float>(k + 1) },
-			{ static_cast<float>(i + 1), static_cast<float>(j), static_cast<float>(k + 1) },
+			{ static_cast<float>(i)    , static_cast<float>(j)    , static_cast<float>(k)     },
+			{ static_cast<float>(i + 1), static_cast<float>(j)    , static_cast<float>(k)     },
+			{ static_cast<float>(i + 1), static_cast<float>(j + 1), static_cast<float>(k)     },
+			{ static_cast<float>(i)    , static_cast<float>(j + 1), static_cast<float>(k)     },
+			{ static_cast<float>(i)    , static_cast<float>(j)    , static_cast<float>(k + 1) },
+			{ static_cast<float>(i + 1), static_cast<float>(j)    , static_cast<float>(k + 1) },
 			{ static_cast<float>(i + 1), static_cast<float>(j + 1), static_cast<float>(k + 1) },
-			{ static_cast<float>(i), static_cast<float>(j + 1), static_cast<float>(k + 1) },
+			{ static_cast<float>(i)    , static_cast<float>(j + 1), static_cast<float>(k + 1) },
 		};
 
 		// coordinates of voxel corners in the mesh's coordinate frame
 		point_t const voxel_corner_positions[8] =
 		{
-			{ grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz },
-			{ grid.x + (i + 1) * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz },
-			{ grid.x + (i + 1) * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k * grid.dz },
-			{ grid.x + i * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k * grid.dz },
-			{ grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + (k + 1) * grid.dz },
-			{ grid.x + (i + 1) * grid.dx, grid.y + j * grid.dy, grid.z + (k + 1) * grid.dz },
+			{ grid.x + i       * grid.dx, grid.y + j       * grid.dy, grid.z + k       * grid.dz },
+			{ grid.x + (i + 1) * grid.dx, grid.y + j       * grid.dy, grid.z + k       * grid.dz },
+			{ grid.x + (i + 1) * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k       * grid.dz },
+			{ grid.x + i       * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k       * grid.dz },
+			{ grid.x + i       * grid.dx, grid.y + j       * grid.dy, grid.z + (k + 1) * grid.dz },
+			{ grid.x + (i + 1) * grid.dx, grid.y + j       * grid.dy, grid.z + (k + 1) * grid.dz },
 			{ grid.x + (i + 1) * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + (k + 1) * grid.dz },
-			{ grid.x + i * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + (k + 1) * grid.dz }
+			{ grid.x + i       * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + (k + 1) * grid.dz }
 		};
 
 		// scalar values of the implicit function evaluated at cube vertices (voxel corners)
@@ -417,13 +419,13 @@ common::igl_triangle_mesh surface_nets(
 		point_t const voxel_corners_of_interest[4] =
 		{
 			// vertex 0
-			{ grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz },
+			{ grid.x + i       * grid.dx, grid.y + j       * grid.dy, grid.z + k       * grid.dz },
 			// vertex 4
-			{ grid.x + i * grid.dx, grid.y + j * grid.dy, grid.z + (k + 1) * grid.dz },
+			{ grid.x + i       * grid.dx, grid.y + j       * grid.dy, grid.z + (k + 1) * grid.dz },
 			// vertex 3
-			{ grid.x + i * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k * grid.dz },
+			{ grid.x + i       * grid.dx, grid.y + (j + 1) * grid.dy, grid.z + k       * grid.dz },
 			// vertex 1
-			{ grid.x + (i + 1) * grid.dx, grid.y + j * grid.dy, grid.z + k * grid.dz }
+			{ grid.x + (i + 1) * grid.dx, grid.y + j       * grid.dy, grid.z + k       * grid.dz }
 		};
 
 		float const edge_scalar_values[3][2] =
@@ -1295,7 +1297,7 @@ common::igl_triangle_mesh surface_nets(
     };
 
     // Now look at active cubes only which are connected to the root
-    // and perform vertex placement. This is the main iteration loop 
+    // and perform vertex placement. This is the main iteration loop
     // over all active cubes connected to the root active cube.
     std::unordered_map<std::size_t, active_cube_t> active_cubes_map{};
     bfs_queue.push(root);
