@@ -59,6 +59,15 @@ common::igl_triangle_mesh surface_nets(
         std::size_t k = (active_cube_index) / (grid.sx * grid.sy);
         return std::make_tuple(i, j, k);
     };
+    
+    auto const is_scalar_positive = [](float scalar, float isovalue) -> bool {
+        return scalar >= isovalue;
+    };
+
+    auto const are_edge_scalars_bipolar =
+        [&is_scalar_positive](float scalar1, float scalar2, float isovalue) -> bool {
+        return is_scalar_positive(scalar1, isovalue) != is_scalar_positive(scalar2, isovalue);
+    };
 
     // mapping from active cube indices to vertex indices of the generated mesh
     std::unordered_map<std::size_t, std::uint64_t> active_cube_to_vertex_index_map{};
@@ -168,16 +177,6 @@ common::igl_triangle_mesh surface_nets(
 			{ 1u, 5u },
 			{ 2u, 6u },
 			{ 3u, 7u }
-		};
-
-		auto const is_scalar_positive = [](float scalar, float isovalue) -> bool
-		{
-			return scalar >= isovalue;
-		};
-
-		auto const are_edge_scalars_bipolar = [&is_scalar_positive](float scalar1, float scalar2, float isovalue) -> bool
-		{
-			return is_scalar_positive(scalar1, isovalue) != is_scalar_positive(scalar2, isovalue);
 		};
 
 		bool const edge_bipolarity_array[12] =
@@ -486,6 +485,10 @@ common::igl_triangle_mesh surface_nets(
 		// look at each potentially generated quad
 		for (std::size_t i = 0; i < 3; ++i)
 		{
+			if (!are_edge_scalars_bipolar(edge_scalar_values[i][0], edge_scalar_values[i][1], isovalue)) {
+				continue;
+			}
+
 			auto const neighbor1 = get_active_cube_index(
 				neighbor_grid_positions[quad_neighbors[i][0]][0],
 				neighbor_grid_positions[quad_neighbors[i][0]][1],
